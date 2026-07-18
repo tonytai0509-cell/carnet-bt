@@ -59,6 +59,22 @@ async function savePatients(list) {
     console.error("Erreur sauvegarde patients", e);
   }
 }
+async function loadNotes() {
+  try {
+    const res = await window.storage.get("agenda_notes");
+    return res ? JSON.parse(res.value) : [];
+  } catch (e) {
+    console.error("Erreur chargement notes", e);
+    return [];
+  }
+}
+async function saveNotes(list) {
+  try {
+    await window.storage.set("agenda_notes", JSON.stringify(list));
+  } catch (e) {
+    console.error("Erreur sauvegarde notes", e);
+  }
+}
 async function loadAttachments(patientId) {
   try {
     const res = await window.storage.get(`attachments:${patientId}`);
