@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Carnet BT</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0D1117" />
+<link rel="stylesheet" href="css/style.css" />
+<script>
+  window.__cdnFailures = [];
+  window.__cdnFail = function (name) { window.__cdnFailures.push(name); };
+</script>
+<script crossorigin="anonymous" src="https://unpkg.com/react@18/umd/react.production.min.js" onerror="window.__cdnFail && window.__cdnFail('React (unpkg.com)')"></script>
+<script crossorigin="anonymous" src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" onerror="window.__cdnFail && window.__cdnFail('ReactDOM (unpkg.com)')"></script>
+</head>
+<body>
+<div id="root"></div>
+<div id="boot-error"></div>
+
+<script>
+  window.addEventListener('error', function (e) {
+    var el = document.getElementById('boot-error');
+    el.style.display = 'block';
+    el.textContent = 'Erreur au chargement : ' + e.message;
+  });
+  if (window.__cdnFailures && window.__cdnFailures.length) {
+    var el0 = document.getElementById('boot-error');
+    el0.style.display = 'block';
+    el0.textContent = "Échec du chargement de : " + window.__cdnFailures.join(', ') + ". Vérifie ta connexion internet et réessaie.";
+  }
+  setTimeout(function () {
+    var root = document.getElementById('root');
+    if (root && root.children.length === 0) {
+      var el = document.getElementById('boot-error');
+      el.style.display = 'block';
+      if (window.__cdnFailures && window.__cdnFailures.length) {
+        el.textContent = "Échec du chargement de : " + window.__cdnFailures.join(', ') + ". Vérifie ta connexion internet et réessaie.";
+      } else {
+        el.textContent = "L'appli n'a pas pu se charger. Vérifie ta connexion et réessaie.";
+      }
+    }
+  }, 5000);
+</script>
+
+<!-- Modules de l'application, chargés dans l'ordre -->
+<script src="js/icons.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/image-processing.js"></script>
+<script src="js/alerts.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
