@@ -1,4 +1,4 @@
-const CACHE_NAME = "carnet-bt-v6";
+const CACHE_NAME = "carnet-bt-v7";
 const CORE_ASSETS = [
   "./",
   "./index.html",
