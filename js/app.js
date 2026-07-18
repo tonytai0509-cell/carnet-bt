@@ -20,13 +20,38 @@ function CarnetBTApp() {
     const [scanLabel, setScanLabel] = useState("Bon de transport");
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewZoom, setPreviewZoom] = useState(false);
+    const [session, setSession] = useState(undefined); // undefined = vérification en cours, null = déconnecté
     useEffect(() => {
         (async () => {
+            const { data } = await window.supabaseClient.auth.getSession();
+            setSession(data.session);
+        })();
+        const { data: sub } = window.supabaseClient.auth.onAuthStateChange((_event, newSession) => {
+            setSession((prev) => {
+                const prevUid = prev && prev.user && prev.user.id;
+                const nextUid = newSession && newSession.user && newSession.user.id;
+                if (prevUid !== nextUid) {
+                    // déconnexion ou changement de compte : on efface l'état de l'ancien chauffeur
+                    setPatients([]);
+                    setAttachments([]);
+                    setSelectedId(null);
+                    setView("liste");
+                    setSearch("");
+                }
+                return newSession;
+            });
+        });
+        return () => sub.subscription.unsubscribe();
+    }, []);
+    useEffect(() => {
+        if (!session) return;
+        (async () => {
+            setLoading(true);
             const p = await loadPatients();
             setPatients(p);
             setLoading(false);
         })();
-    }, []);
+    }, [session]);
     function showToast(msg) {
         setToast(msg);
         setTimeout(() => setToast(null), 2000);
@@ -269,6 +294,13 @@ function CarnetBTApp() {
             return rank(a.alerts) - rank(b.alerts);
         });
     }, [patients, search]);
+    if (session === undefined) {
+        return (React.createElement("div", { className: "min-h-screen bg-slate-950 flex items-center justify-center" },
+            React.createElement(Spinner, { size: 28, className: "animate-spin text-teal-400" })));
+    }
+    if (!session) {
+        return React.createElement(AuthScreen, null);
+    }
     if (loading) {
         return (React.createElement("div", { className: "min-h-screen bg-slate-950 flex items-center justify-center" },
             React.createElement(Spinner, { size: 28, className: "animate-spin text-teal-400" })));
@@ -284,7 +316,11 @@ function CarnetBTApp() {
                     view === "ajout" && "Nouveau patient",
                     view === "detail" && (selected === null || selected === void 0 ? void 0 : selected.nom),
                     view === "scanner" && "Scanner un document"),
-                React.createElement("p", { className: "text-[11px] text-slate-500 leading-tight" }, view === "liste" && `${patients.length} patient${patients.length > 1 ? "s" : ""} suivi${patients.length > 1 ? "s" : ""}`))),
+                React.createElement("p", { className: "text-[11px] text-slate-500 leading-tight" }, view === "liste" && `${patients.length} patient${patients.length > 1 ? "s" : ""} suivi${patients.length > 1 ? "s" : ""}`)),
+            React.createElement("div", { className: "flex-1" }),
+            React.createElement("button", { onClick: () => window.supabaseClient.auth.signOut(), className: "text-xs text-slate-500 flex items-center gap-1" },
+                React.createElement(Icon, { size: 14 }, "🚪"),
+                " Déconnexion")),
         React.createElement("main", { className: "max-w-md mx-auto w-full px-4 py-5" },
             view === "liste" && (React.createElement("div", { className: "space-y-2" },
                 React.createElement("div", { className: "relative mb-1" },

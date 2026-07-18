@@ -1,14 +1,16 @@
-const CACHE_NAME = "carnet-bt-v2";
+const CACHE_NAME = "carnet-bt-v3";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./css/style.css",
+  "./js/supabaseClient.js",
   "./js/icons.js",
   "./js/storage.js",
   "./js/image-processing.js",
   "./js/alerts.js",
   "./js/ui.js",
+  "./js/auth.js",
   "./js/app.js",
   "./js/main.js",
   "./icons/icon-192.png",
@@ -33,6 +35,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (!event.request.url.startsWith(self.location.origin)) return; // laisse Supabase/CDN au réseau direct
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

@@ -4,8 +4,8 @@
     {
       "name": "carnet-bt-static",
       "runtimeExecutable": "py",
-      "runtimeArgs": ["-3", "-m", "http.server", "5199"],
-      "port": 5199
+      "runtimeArgs": ["-3", "-m", "http.server", "5488"],
+      "port": 5488
     }
   ]
 }

@@ -7,11 +7,13 @@ Application de suivi des bons de transport (patients, BT en série, scanner, ale
 ```
 index.html          → page principale
 css/style.css        → tout le style visuel
+js/supabaseClient.js → connexion à la base de données (Supabase)
 js/icons.js          → icônes
-js/storage.js        → sauvegarde des données (localStorage du navigateur)
+js/storage.js        → sauvegarde des données (compte utilisateur, Supabase)
 js/image-processing.js → détection de contour + amélioration des scans
 js/alerts.js          → logique des alertes (BT terminé, ADELI manquant, etc.)
 js/ui.js              → petits composants réutilisables (champs, compteurs)
+js/auth.js            → écran de connexion / création de compte
 js/app.js             → l'application principale (écrans, navigation)
 js/main.js            → démarre l'application
 ```
@@ -63,12 +65,26 @@ Pour mettre à jour :
 
 Netlify redéploie automatiquement en quelques secondes.
 
+## Comptes utilisateurs
+
+Chaque chauffeur crée son propre compte (e-mail + mot de passe) directement
+dans l'appli. Les patients, BT et photos sont liés à ce compte et stockés
+sur un serveur (Supabase) — **un chauffeur ne peut jamais voir les documents
+d'un autre chauffeur**, cette isolation est imposée par la base de données
+elle-même, pas seulement par l'appli.
+
+Voir la section technique "Configurer Supabase" (fournie séparément lors de
+la mise en place) pour créer le projet, exécuter le script SQL et connecter
+les identifiants dans `js/supabaseClient.js`.
+
 ## Important à savoir
 
-- Les données (patients, BT, photos) restent stockées **sur ton téléphone**
-  (dans le navigateur), pas sur un serveur. Si tu changes de téléphone ou
-  effaces les données du navigateur, tu perds l'historique. Pas de
-  synchronisation entre plusieurs appareils pour l'instant.
-- Ce n'est pas un hébergement agréé données de santé (HDS). Convient pour un
-  usage personnel de test ; une vraie mise en production avec plusieurs
-  utilisateurs demandera cette étape en plus.
+- Une connexion internet est nécessaire pour consulter ou modifier tes
+  patients/BT/photos (elles ne sont plus stockées uniquement sur le
+  téléphone). L'appli elle-même (l'interface) reste installable et
+  s'ouvre même hors-ligne, mais sans données tant que le réseau n'est pas
+  revenu.
+- Ce n'est pas un hébergement agréé données de santé (HDS) — l'usage visé
+  est le transport (taxi/VSL), pas le soin. Reste prudent : ne mets pas en
+  ligne d'informations médicales détaillées, seulement ce qui est
+  nécessaire au transport (nom, destination, n° de BT).
