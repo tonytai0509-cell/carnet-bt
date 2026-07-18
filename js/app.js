@@ -1,9 +1,26 @@
 "use strict";
+function todayISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function buildMonthGrid(year, month) {
+    const first = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const leadingBlanks = (first.getDay() + 6) % 7; // lundi = 0
+    const cells = Array(leadingBlanks).fill(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+        cells.push(`${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+    }
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+}
+const MOIS_NOMS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+const JOURS_NOMS = ["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"];
 function CarnetBTApp() {
     var _a, _b;
     const [loading, setLoading] = useState(true);
     const [patients, setPatients] = useState([]);
-    const [view, setView] = useState("liste"); // liste | ajout | detail | scanner
+    const [view, setView] = useState("agenda"); // agenda | liste | ajout | detail | scanner
     const [selectedId, setSelectedId] = useState(null);
     const [form, setForm] = useState(emptyForm);
     const [attachments, setAttachments] = useState([]);
@@ -20,6 +37,11 @@ function CarnetBTApp() {
     const [scanLabel, setScanLabel] = useState("Bon de transport");
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewZoom, setPreviewZoom] = useState(false);
+    // agenda state
+    const [agendaMonth, setAgendaMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
+    const [agendaSelectedDate, setAgendaSelectedDate] = useState(() => todayISO());
+    const [agendaFormPatientId, setAgendaFormPatientId] = useState("");
+    const [agendaFormBtId, setAgendaFormBtId] = useState("");
     const [session, setSession] = useState(undefined); // undefined = vérification en cours, null = déconnecté
     useEffect(() => {
         (async () => {
@@ -35,7 +57,7 @@ function CarnetBTApp() {
                     setPatients([]);
                     setAttachments([]);
                     setSelectedId(null);
-                    setView("liste");
+                    setView("agenda");
                     setSearch("");
                 }
                 return newSession;
@@ -81,6 +103,7 @@ function CarnetBTApp() {
             typeVisite: b.typeVisite || "consultation",
             utilises: 0,
             historique: [],
+            planifies: [],
         }));
         const newPatient = {
             id: "p_" + Date.now(),
@@ -175,15 +198,15 @@ function CarnetBTApp() {
             showToast("Partage non supporté sur ce navigateur");
         }
     }
-    async function enregistrerTrajet(patientId, btId) {
-        const today = new Date().toISOString().slice(0, 10);
+    async function enregistrerTrajet(patientId, btId, date) {
+        const d = date || todayISO();
         const updated = patients.map((p) => {
             if (p.id !== patientId)
                 return p;
             return {
                 ...p,
                 bts: p.bts.map((b) => b.id === btId && b.utilises < b.total
-                    ? { ...b, utilises: b.utilises + 1, historique: [...(b.historique || []), today] }
+                    ? { ...b, utilises: b.utilises + 1, historique: [...(b.historique || []), d] }
                     : b),
             };
         });
@@ -202,6 +225,58 @@ function CarnetBTApp() {
                     const historique = [...(b.historique || [])];
                     historique.pop();
                     return { ...b, utilises: b.utilises - 1, historique };
+                }),
+            };
+        });
+        setPatients(updated);
+        await savePatients(updated);
+    }
+    async function planifierTrajet(patientId, btId, date) {
+        const updated = patients.map((p) => {
+            if (p.id !== patientId)
+                return p;
+            return {
+                ...p,
+                bts: p.bts.map((b) => b.id === btId
+                    ? { ...b, planifies: [...(b.planifies || []), date] }
+                    : b),
+            };
+        });
+        setPatients(updated);
+        await savePatients(updated);
+    }
+    async function annulerPlanification(patientId, btId, date) {
+        const updated = patients.map((p) => {
+            if (p.id !== patientId)
+                return p;
+            return {
+                ...p,
+                bts: p.bts.map((b) => {
+                    if (b.id !== btId)
+                        return b;
+                    const planifies = [...(b.planifies || [])];
+                    const idx = planifies.indexOf(date);
+                    if (idx !== -1) planifies.splice(idx, 1);
+                    return { ...b, planifies };
+                }),
+            };
+        });
+        setPatients(updated);
+        await savePatients(updated);
+    }
+    async function confirmerPlanification(patientId, btId, date) {
+        const updated = patients.map((p) => {
+            if (p.id !== patientId)
+                return p;
+            return {
+                ...p,
+                bts: p.bts.map((b) => {
+                    if (b.id !== btId || b.utilises >= b.total)
+                        return b;
+                    const planifies = [...(b.planifies || [])];
+                    const idx = planifies.indexOf(date);
+                    if (idx !== -1) planifies.splice(idx, 1);
+                    return { ...b, utilises: b.utilises + 1, historique: [...(b.historique || []), date], planifies };
                 }),
             };
         });
@@ -294,6 +369,20 @@ function CarnetBTApp() {
             return rank(a.alerts) - rank(b.alerts);
         });
     }, [patients, search]);
+    const tripsByDate = useMemo(() => {
+        const map = {};
+        patients.forEach((p) => {
+            (p.bts || []).forEach((bt) => {
+                (bt.historique || []).forEach((d) => {
+                    (map[d] = map[d] || []).push({ patient: p, bt, statut: "fait" });
+                });
+                (bt.planifies || []).forEach((d) => {
+                    (map[d] = map[d] || []).push({ patient: p, bt, statut: "prevu" });
+                });
+            });
+        });
+        return map;
+    }, [patients]);
     if (session === undefined) {
         return (React.createElement("div", { className: "min-h-screen bg-slate-950 flex items-center justify-center" },
             React.createElement(Spinner, { size: 28, className: "animate-spin text-teal-400" })));
@@ -307,11 +396,12 @@ function CarnetBTApp() {
     }
     return (React.createElement("div", { className: "min-h-screen bg-slate-950 text-slate-100 font-sans pb-20" },
         React.createElement("header", { className: "border-b border-slate-800 bg-black px-4 py-3 sticky top-0 z-20 flex items-center gap-2" },
-            view !== "liste" ? (React.createElement("button", { onClick: () => setView("liste"), className: "text-slate-400" },
+            view !== "liste" && view !== "agenda" ? (React.createElement("button", { onClick: () => setView("liste"), className: "text-slate-400" },
                 React.createElement(Icon, { size: 20 }, "←"))) : (React.createElement("div", { className: "h-8 w-8 rounded-md bg-teal-500/15 border border-teal-500/30 flex items-center justify-center" },
                 React.createElement(Icon, { size: 16, className: "text-teal-400" }, "🎫"))),
             React.createElement("div", null,
                 React.createElement("p", { className: "text-sm font-semibold leading-tight" },
+                    view === "agenda" && "Agenda",
                     view === "liste" && "Carnet BT",
                     view === "ajout" && "Nouveau patient",
                     view === "detail" && (selected === null || selected === void 0 ? void 0 : selected.nom),
@@ -322,6 +412,50 @@ function CarnetBTApp() {
                 React.createElement(Icon, { size: 14 }, "🚪"),
                 " Déconnexion")),
         React.createElement("main", { className: "max-w-md mx-auto w-full px-4 py-5" },
+            view === "agenda" && (React.createElement("div", { className: "space-y-4" },
+                React.createElement("div", { className: "flex items-center justify-between" },
+                    React.createElement("button", { onClick: () => setAgendaMonth((m) => { const d = new Date(m.year, m.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }), className: "text-slate-400 p-1" },
+                        React.createElement(Icon, { size: 18 }, "‹")),
+                    React.createElement("p", { className: "text-sm font-semibold" }, `${MOIS_NOMS[agendaMonth.month]} ${agendaMonth.year}`),
+                    React.createElement("button", { onClick: () => setAgendaMonth((m) => { const d = new Date(m.year, m.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }), className: "text-slate-400 p-1" },
+                        React.createElement(Icon, { size: 18 }, "›"))),
+                React.createElement("div", { className: "grid grid-cols-7 gap-1 text-center text-[10px] text-slate-500" }, JOURS_NOMS.map((j, i) => React.createElement("div", { key: i }, j))),
+                React.createElement("div", { className: "grid grid-cols-7 gap-1" }, buildMonthGrid(agendaMonth.year, agendaMonth.month).map((dateStr, i) => {
+                    if (dateStr === null)
+                        return React.createElement("div", { key: i });
+                    const trips = tripsByDate[dateStr] || [];
+                    const isSelected = dateStr === agendaSelectedDate;
+                    const isToday = dateStr === todayISO();
+                    return (React.createElement("button", { key: i, onClick: () => setAgendaSelectedDate(dateStr), className: "h-9 rounded-md text-xs flex flex-col items-center justify-center gap-0.5 " +
+                            (isSelected ? "bg-teal-500/20 border border-teal-500/50 text-teal-200" : isToday ? "border border-slate-600 text-slate-100" : "border border-transparent text-slate-300") },
+                        React.createElement("span", null, parseInt(dateStr.slice(8), 10)),
+                        trips.length > 0 && (React.createElement("div", { className: "flex gap-0.5" }, trips.slice(0, 3).map((t, j) => (React.createElement("span", { key: j, className: "h-1.5 w-1.5 rounded-full " + (t.statut === "fait" ? "bg-teal-400" : "bg-amber-400") })))))));
+                })),
+                React.createElement("div", { className: "space-y-2 border-t border-slate-800 pt-3" },
+                    React.createElement("p", { className: "text-[11px] uppercase tracking-wide text-slate-500" }, new Date(agendaSelectedDate + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })),
+                    (tripsByDate[agendaSelectedDate] || []).length === 0
+                        ? React.createElement("p", { className: "text-sm text-slate-600" }, "Aucun trajet ce jour-là.")
+                        : (tripsByDate[agendaSelectedDate] || []).map((t, i) => (React.createElement("div", { key: i, className: "flex items-center justify-between rounded-md border border-slate-800 bg-slate-900 px-3 py-2" },
+                            React.createElement("div", null,
+                                React.createElement("p", { className: "text-sm text-slate-100" }, t.patient.nom),
+                                React.createElement("p", { className: "text-[11px] text-slate-500" }, t.bt.label)),
+                            t.statut === "prevu"
+                                ? React.createElement("div", { className: "flex gap-1.5" },
+                                    React.createElement("button", { onClick: () => confirmerPlanification(t.patient.id, t.bt.id, agendaSelectedDate), disabled: t.bt.utilises >= t.bt.total, className: "rounded-md px-2 py-1 text-xs font-medium " +
+                                            (t.bt.utilises >= t.bt.total ? "bg-slate-800 text-slate-600 cursor-not-allowed" : "bg-teal-500 text-slate-950") }, "✓ Fait"),
+                                    React.createElement("button", { onClick: () => annulerPlanification(t.patient.id, t.bt.id, agendaSelectedDate), className: "rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400" }, "✕"))
+                                : React.createElement("span", { className: "text-[10px] text-teal-400" }, "Fait"))))),
+                React.createElement("div", { className: "space-y-2 border-t border-slate-800 pt-3" },
+                    React.createElement("p", { className: "text-[11px] uppercase tracking-wide text-slate-500" }, "Ajouter un trajet"),
+                    React.createElement("select", { value: agendaFormPatientId, onChange: (e) => { setAgendaFormPatientId(e.target.value); setAgendaFormBtId(""); }, className: "w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm text-slate-100" },
+                        React.createElement("option", { value: "" }, "Choisir un patient"),
+                        patients.map((p) => React.createElement("option", { key: p.id, value: p.id }, p.nom))),
+                    agendaFormPatientId && (React.createElement("select", { value: agendaFormBtId, onChange: (e) => setAgendaFormBtId(e.target.value), className: "w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm text-slate-100" },
+                        React.createElement("option", { value: "" }, "Choisir un BT"),
+                        ((patients.find((p) => p.id === agendaFormPatientId) || {}).bts || []).map((bt) => (React.createElement("option", { key: bt.id, value: bt.id }, bt.label, " — BT n°", bt.numero))))),
+                    agendaFormBtId && (React.createElement("div", { className: "flex gap-2" },
+                        React.createElement("button", { onClick: () => { planifierTrajet(agendaFormPatientId, agendaFormBtId, agendaSelectedDate); setAgendaFormPatientId(""); setAgendaFormBtId(""); }, className: "flex-1 rounded-md border border-slate-700 text-slate-200 py-2 text-sm" }, "Planifier"),
+                        agendaSelectedDate <= todayISO() && (React.createElement("button", { onClick: () => { enregistrerTrajet(agendaFormPatientId, agendaFormBtId, agendaSelectedDate); setAgendaFormPatientId(""); setAgendaFormBtId(""); }, className: "flex-1 rounded-md bg-teal-500 text-slate-950 font-medium py-2 text-sm" }, "Marquer fait"))))))),
             view === "liste" && (React.createElement("div", { className: "space-y-2" },
                 React.createElement("div", { className: "relative mb-1" },
                     React.createElement(Icon, { size: 15, className: "absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" }, "🔎"),
@@ -561,7 +695,10 @@ function CarnetBTApp() {
                         React.createElement(Icon, { size: 16 }, "✓"),
                         " Terminer et enregistrer")))))),
         React.createElement("nav", { className: "fixed bottom-0 left-0 right-0 border-t border-slate-800 bg-black px-4 py-2 z-20" },
-            React.createElement("div", { className: "max-w-md mx-auto grid grid-cols-3 gap-2" },
+            React.createElement("div", { className: "max-w-md mx-auto grid grid-cols-4 gap-2" },
+                React.createElement("button", { onClick: () => setView("agenda"), className: "flex flex-col items-center gap-0.5 py-1.5 rounded-md text-xs " + (view === "agenda" ? "text-teal-400" : "text-slate-500") },
+                    React.createElement(Icon, { size: 18 }, "🗓️"),
+                    "Agenda"),
                 React.createElement("button", { onClick: () => setView("liste"), className: "flex flex-col items-center gap-0.5 py-1.5 rounded-md text-xs " + (view === "liste" ? "text-teal-400" : "text-slate-500") },
                     React.createElement(Icon, { size: 18 }, "👥"),
                     "Patients"),
