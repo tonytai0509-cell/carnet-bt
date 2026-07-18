@@ -16,6 +16,11 @@ function buildMonthGrid(year, month) {
 }
 const MOIS_NOMS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 const JOURS_NOMS = ["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"];
+function tripTime(d) {
+    return d.length > 10 ? d.slice(11, 16) : null;
+}
+const AGENDA_START_HOUR = 6;
+const AGENDA_END_HOUR = 20;
 function CarnetBTApp() {
     var _a, _b;
     const [loading, setLoading] = useState(true);
@@ -40,8 +45,10 @@ function CarnetBTApp() {
     // agenda state
     const [agendaMonth, setAgendaMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
     const [agendaSelectedDate, setAgendaSelectedDate] = useState(() => todayISO());
+    const [agendaView, setAgendaView] = useState("mois"); // mois | jour
     const [agendaFormPatientId, setAgendaFormPatientId] = useState("");
     const [agendaFormBtId, setAgendaFormBtId] = useState("");
+    const [agendaFormTime, setAgendaFormTime] = useState("");
     const [session, setSession] = useState(undefined); // undefined = vérification en cours, null = déconnecté
     useEffect(() => {
         (async () => {
@@ -374,15 +381,29 @@ function CarnetBTApp() {
         patients.forEach((p) => {
             (p.bts || []).forEach((bt) => {
                 (bt.historique || []).forEach((d) => {
-                    (map[d] = map[d] || []).push({ patient: p, bt, statut: "fait" });
+                    const key = d.slice(0, 10);
+                    (map[key] = map[key] || []).push({ patient: p, bt, statut: "fait", date: d, time: tripTime(d) });
                 });
                 (bt.planifies || []).forEach((d) => {
-                    (map[d] = map[d] || []).push({ patient: p, bt, statut: "prevu" });
+                    const key = d.slice(0, 10);
+                    (map[key] = map[key] || []).push({ patient: p, bt, statut: "prevu", date: d, time: tripTime(d) });
                 });
             });
         });
         return map;
     }, [patients]);
+    function renderTripRow(t, i) {
+        return (React.createElement("div", { key: i, className: "flex items-center justify-between rounded-md border border-slate-800 bg-slate-900 px-3 py-2" },
+            React.createElement("div", null,
+                React.createElement("p", { className: "text-sm text-slate-100" }, t.patient.nom),
+                React.createElement("p", { className: "text-[11px] text-slate-500" }, t.bt.label)),
+            t.statut === "prevu"
+                ? React.createElement("div", { className: "flex gap-1.5" },
+                    React.createElement("button", { onClick: () => confirmerPlanification(t.patient.id, t.bt.id, t.date), disabled: t.bt.utilises >= t.bt.total, className: "rounded-md px-2 py-1 text-xs font-medium " +
+                            (t.bt.utilises >= t.bt.total ? "bg-slate-800 text-slate-600 cursor-not-allowed" : "bg-teal-500 text-slate-950") }, "✓ Fait"),
+                    React.createElement("button", { onClick: () => annulerPlanification(t.patient.id, t.bt.id, t.date), className: "rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400" }, "✕"))
+                : React.createElement("span", { className: "text-[10px] text-teal-400" }, "Fait")));
+    }
     if (session === undefined) {
         return (React.createElement("div", { className: "min-h-screen bg-slate-950 flex items-center justify-center" },
             React.createElement(Spinner, { size: 28, className: "animate-spin text-teal-400" })));
@@ -413,49 +434,60 @@ function CarnetBTApp() {
                 " Déconnexion")),
         React.createElement("main", { className: "max-w-md mx-auto w-full px-4 py-5" },
             view === "agenda" && (React.createElement("div", { className: "space-y-4" },
-                React.createElement("div", { className: "flex items-center justify-between" },
+                agendaView === "mois" && (React.createElement("div", { className: "flex items-center justify-between" },
                     React.createElement("button", { onClick: () => setAgendaMonth((m) => { const d = new Date(m.year, m.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }), className: "text-slate-400 p-1" },
                         React.createElement(Icon, { size: 18 }, "‹")),
                     React.createElement("p", { className: "text-sm font-semibold" }, `${MOIS_NOMS[agendaMonth.month]} ${agendaMonth.year}`),
                     React.createElement("button", { onClick: () => setAgendaMonth((m) => { const d = new Date(m.year, m.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }), className: "text-slate-400 p-1" },
-                        React.createElement(Icon, { size: 18 }, "›"))),
-                React.createElement("div", { className: "grid grid-cols-7 gap-1 text-center text-[10px] text-slate-500" }, JOURS_NOMS.map((j, i) => React.createElement("div", { key: i }, j))),
-                React.createElement("div", { className: "grid grid-cols-7 gap-1" }, buildMonthGrid(agendaMonth.year, agendaMonth.month).map((dateStr, i) => {
+                        React.createElement(Icon, { size: 18 }, "›")))),
+                agendaView === "mois" && (React.createElement("div", { className: "grid grid-cols-7 gap-1 text-center text-[10px] text-slate-500" }, JOURS_NOMS.map((j, i) => React.createElement("div", { key: i }, j)))),
+                agendaView === "mois" && (React.createElement("div", { className: "grid grid-cols-7 gap-1" }, buildMonthGrid(agendaMonth.year, agendaMonth.month).map((dateStr, i) => {
                     if (dateStr === null)
                         return React.createElement("div", { key: i });
                     const trips = tripsByDate[dateStr] || [];
                     const isSelected = dateStr === agendaSelectedDate;
                     const isToday = dateStr === todayISO();
-                    return (React.createElement("button", { key: i, onClick: () => setAgendaSelectedDate(dateStr), className: "h-9 rounded-md text-xs flex flex-col items-center justify-center gap-0.5 " +
+                    return (React.createElement("button", { key: i, onClick: () => { setAgendaSelectedDate(dateStr); setAgendaView("jour"); setAgendaFormPatientId(""); setAgendaFormBtId(""); setAgendaFormTime(""); }, className: "h-9 rounded-md text-xs flex flex-col items-center justify-center gap-0.5 " +
                             (isSelected ? "bg-teal-500/20 border border-teal-500/50 text-teal-200" : isToday ? "border border-slate-600 text-slate-100" : "border border-transparent text-slate-300") },
                         React.createElement("span", null, parseInt(dateStr.slice(8), 10)),
                         trips.length > 0 && (React.createElement("div", { className: "flex gap-0.5" }, trips.slice(0, 3).map((t, j) => (React.createElement("span", { key: j, className: "h-1.5 w-1.5 rounded-full " + (t.statut === "fait" ? "bg-teal-400" : "bg-amber-400") })))))));
-                })),
-                React.createElement("div", { className: "space-y-2 border-t border-slate-800 pt-3" },
+                }))),
+                agendaView === "jour" && (React.createElement("div", { className: "space-y-4" },
+                    React.createElement("button", { onClick: () => setAgendaView("mois"), className: "text-slate-400 flex items-center gap-1 text-xs" },
+                        React.createElement(Icon, { size: 14 }, "←"),
+                        " Mois"),
                     React.createElement("p", { className: "text-[11px] uppercase tracking-wide text-slate-500" }, new Date(agendaSelectedDate + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })),
-                    (tripsByDate[agendaSelectedDate] || []).length === 0
-                        ? React.createElement("p", { className: "text-sm text-slate-600" }, "Aucun trajet ce jour-là.")
-                        : (tripsByDate[agendaSelectedDate] || []).map((t, i) => (React.createElement("div", { key: i, className: "flex items-center justify-between rounded-md border border-slate-800 bg-slate-900 px-3 py-2" },
-                            React.createElement("div", null,
-                                React.createElement("p", { className: "text-sm text-slate-100" }, t.patient.nom),
-                                React.createElement("p", { className: "text-[11px] text-slate-500" }, t.bt.label)),
-                            t.statut === "prevu"
-                                ? React.createElement("div", { className: "flex gap-1.5" },
-                                    React.createElement("button", { onClick: () => confirmerPlanification(t.patient.id, t.bt.id, agendaSelectedDate), disabled: t.bt.utilises >= t.bt.total, className: "rounded-md px-2 py-1 text-xs font-medium " +
-                                            (t.bt.utilises >= t.bt.total ? "bg-slate-800 text-slate-600 cursor-not-allowed" : "bg-teal-500 text-slate-950") }, "✓ Fait"),
-                                    React.createElement("button", { onClick: () => annulerPlanification(t.patient.id, t.bt.id, agendaSelectedDate), className: "rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400" }, "✕"))
-                                : React.createElement("span", { className: "text-[10px] text-teal-400" }, "Fait"))))),
-                React.createElement("div", { className: "space-y-2 border-t border-slate-800 pt-3" },
-                    React.createElement("p", { className: "text-[11px] uppercase tracking-wide text-slate-500" }, "Ajouter un trajet"),
-                    React.createElement("select", { value: agendaFormPatientId, onChange: (e) => { setAgendaFormPatientId(e.target.value); setAgendaFormBtId(""); }, className: "w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm text-slate-100" },
-                        React.createElement("option", { value: "" }, "Choisir un patient"),
-                        patients.map((p) => React.createElement("option", { key: p.id, value: p.id }, p.nom))),
-                    agendaFormPatientId && (React.createElement("select", { value: agendaFormBtId, onChange: (e) => setAgendaFormBtId(e.target.value), className: "w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm text-slate-100" },
-                        React.createElement("option", { value: "" }, "Choisir un BT"),
-                        ((patients.find((p) => p.id === agendaFormPatientId) || {}).bts || []).map((bt) => (React.createElement("option", { key: bt.id, value: bt.id }, bt.label, " — BT n°", bt.numero))))),
-                    agendaFormBtId && (React.createElement("div", { className: "flex gap-2" },
-                        React.createElement("button", { onClick: () => { planifierTrajet(agendaFormPatientId, agendaFormBtId, agendaSelectedDate); setAgendaFormPatientId(""); setAgendaFormBtId(""); }, className: "flex-1 rounded-md border border-slate-700 text-slate-200 py-2 text-sm" }, "Planifier"),
-                        agendaSelectedDate <= todayISO() && (React.createElement("button", { onClick: () => { enregistrerTrajet(agendaFormPatientId, agendaFormBtId, agendaSelectedDate); setAgendaFormPatientId(""); setAgendaFormBtId(""); }, className: "flex-1 rounded-md bg-teal-500 text-slate-950 font-medium py-2 text-sm" }, "Marquer fait"))))))),
+                    (tripsByDate[agendaSelectedDate] || []).filter((t) => !t.time).length > 0 && (React.createElement("div", { className: "space-y-2" },
+                        React.createElement("p", { className: "text-[10px] uppercase tracking-wide text-slate-600" }, "Sans horaire"),
+                        (tripsByDate[agendaSelectedDate] || []).filter((t) => !t.time).map((t, i) => renderTripRow(t, i)))),
+                    React.createElement("div", { className: "space-y-1 border-t border-slate-800 pt-3" }, Array.from({ length: AGENDA_END_HOUR - AGENDA_START_HOUR + 1 }, (_, idx) => AGENDA_START_HOUR + idx).map((hour) => {
+                        const hourLabel = String(hour).padStart(2, "0") + ":00";
+                        const hourTrips = (tripsByDate[agendaSelectedDate] || []).filter((t) => {
+                            if (!t.time)
+                                return false;
+                            const h = Math.min(Math.max(parseInt(t.time.slice(0, 2), 10), AGENDA_START_HOUR), AGENDA_END_HOUR);
+                            return h === hour;
+                        });
+                        return (React.createElement("div", { key: hour, className: "flex gap-2 py-1.5 border-b border-slate-900" },
+                            React.createElement("div", { className: "w-10 shrink-0 text-[11px] text-slate-500 pt-1" }, hourLabel),
+                            React.createElement("div", { className: "flex-1 space-y-1.5" },
+                                hourTrips.map((t, i) => renderTripRow(t, i)),
+                                React.createElement("button", { onClick: () => setAgendaFormTime(String(hour).padStart(2, "0") + ":00"), className: "text-[11px] text-slate-600" }, "+ Ajouter"))));
+                    })),
+                    React.createElement("div", { className: "space-y-2 border-t border-slate-800 pt-3" },
+                        React.createElement("p", { className: "text-[11px] uppercase tracking-wide text-slate-500" }, "Ajouter un trajet"),
+                        React.createElement("select", { value: agendaFormPatientId, onChange: (e) => { setAgendaFormPatientId(e.target.value); setAgendaFormBtId(""); }, className: "w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm text-slate-100" },
+                            React.createElement("option", { value: "" }, "Choisir un patient"),
+                            patients.map((p) => React.createElement("option", { key: p.id, value: p.id }, p.nom))),
+                        agendaFormPatientId && (React.createElement("select", { value: agendaFormBtId, onChange: (e) => setAgendaFormBtId(e.target.value), className: "w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm text-slate-100" },
+                            React.createElement("option", { value: "" }, "Choisir un BT"),
+                            ((patients.find((p) => p.id === agendaFormPatientId) || {}).bts || []).map((bt) => (React.createElement("option", { key: bt.id, value: bt.id }, bt.label, " — BT n°", bt.numero))))),
+                        agendaFormPatientId && (React.createElement("div", { className: "space-y-1" },
+                            React.createElement("label", { className: "text-[11px] uppercase tracking-wide text-slate-500" }, "Heure"),
+                            React.createElement("input", { type: "time", value: agendaFormTime, onChange: (e) => setAgendaFormTime(e.target.value), className: "w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm text-slate-100" }))),
+                        agendaFormBtId && agendaFormTime && (React.createElement("div", { className: "flex gap-2" },
+                            React.createElement("button", { onClick: () => { planifierTrajet(agendaFormPatientId, agendaFormBtId, `${agendaSelectedDate}T${agendaFormTime}`); setAgendaFormPatientId(""); setAgendaFormBtId(""); setAgendaFormTime(""); }, className: "flex-1 rounded-md border border-slate-700 text-slate-200 py-2 text-sm" }, "Planifier"),
+                            agendaSelectedDate <= todayISO() && (React.createElement("button", { onClick: () => { enregistrerTrajet(agendaFormPatientId, agendaFormBtId, `${agendaSelectedDate}T${agendaFormTime}`); setAgendaFormPatientId(""); setAgendaFormBtId(""); setAgendaFormTime(""); }, className: "flex-1 rounded-md bg-teal-500 text-slate-950 font-medium py-2 text-sm" }, "Marquer fait"))))))))),
             view === "liste" && (React.createElement("div", { className: "space-y-2" },
                 React.createElement("div", { className: "relative mb-1" },
                     React.createElement(Icon, { size: 15, className: "absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" }, "🔎"),
