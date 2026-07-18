@@ -6,7 +6,11 @@
 <title>Carnet BT</title>
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Carnet BT" />
 <meta name="theme-color" content="#0D1117" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" type="image/png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="stylesheet" href="css/style.css" />
 <script>
   window.__cdnFailures = [];
@@ -52,5 +56,12 @@
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
 <script src="js/main.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
 </body>
 </html>
