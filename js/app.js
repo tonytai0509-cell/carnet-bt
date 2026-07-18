@@ -112,6 +112,11 @@ function CarnetBTApp() {
             setLoading(false);
         })();
     }, [session]);
+    useEffect(() => {
+        if (agendaFormOpen) {
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+    }, [agendaFormOpen]);
     function showToast(msg) {
         setToast(msg);
         setTimeout(() => setToast(null), 2000);
