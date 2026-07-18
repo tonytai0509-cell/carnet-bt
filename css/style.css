@@ -1023,6 +1023,15 @@ img { display: block; max-width: 100%; }
 .text-\[11px\] { font-size: 11px; }
 .z-20 { z-index: 20; }
 .z-30 { z-index: 30; }
+.z-50 { z-index: 50; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.overflow-auto { overflow: auto; }
+.max-h-full { max-height: 100%; }
+.max-w-full { max-width: 100%; }
+.max-w-none { max-width: none; }
+.cursor-zoom-in { cursor: zoom-in; }
+.cursor-zoom-out { cursor: zoom-out; }
+.w-\[220\%\] { width: 220%; }
 .hover\:bg-slate-700:hover { background-color: #334155; }
 .hover\:bg-slate-800\/50:hover { background-color: rgba(30, 41, 59, 0.5); }
 .hover\:bg-teal-400:hover { background-color: #2dd4bf; }

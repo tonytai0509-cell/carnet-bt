@@ -33,12 +33,12 @@ function enhanceCanvas(ctx, width, height) {
   }
   const radius = Math.max(8, Math.round(Math.min(width, height) / 12));
   const background = boxBlur(gray, width, height, radius);
-  const threshold = 185;
+  const threshold = 195;
   for (let i = 0; i < n; i++) {
     const o = i * 4;
     const factor = 255 / Math.max(40, background[i]);
     const flatGray = Math.min(255, gray[i] * factor);
-    const centered = (flatGray - threshold) / 9;
+    const centered = (flatGray - threshold) / 34;
     const sig = 255 / (1 + Math.exp(-centered));
     data[o] = data[o + 1] = data[o + 2] = sig;
   }

@@ -18,6 +18,8 @@ function CarnetBTApp() {
     const [pages, setPages] = useState([]); // pages déjà validées dans cette session de scan
     const [processing, setProcessing] = useState(false);
     const [scanLabel, setScanLabel] = useState("Bon de transport");
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const [previewZoom, setPreviewZoom] = useState(false);
     useEffect(() => {
         (async () => {
             const p = await loadPatients();
@@ -200,6 +202,8 @@ function CarnetBTApp() {
         setRawFile(file);
         setProcessing(true);
         setEnhancedUrl(null);
+        setPreviewOpen(false);
+        setPreviewZoom(false);
         try {
             const url = await processFile(file);
             setEnhancedUrl(url);
@@ -500,8 +504,11 @@ function CarnetBTApp() {
                 processing && (React.createElement("div", { className: "flex flex-col items-center justify-center gap-2 py-14 text-slate-400" },
                     React.createElement(Spinner, { size: 26, className: "animate-spin text-teal-400" }),
                     React.createElement("span", { className: "text-sm" }, "Am\u00E9lioration en cours\u2026"))),
-                enhancedUrl && !processing && (React.createElement("div", { className: "rounded-lg overflow-hidden border border-slate-800" },
-                    React.createElement("img", { src: enhancedUrl, alt: "scan", className: "w-full object-contain bg-white" }))),
+                enhancedUrl && !processing && (React.createElement("div", { className: "relative rounded-lg overflow-hidden border border-slate-800 cursor-pointer", onClick: () => { setPreviewZoom(false); setPreviewOpen(true); } },
+                    React.createElement("img", { src: enhancedUrl, alt: "scan", className: "w-full object-contain bg-white" }),
+                    React.createElement("div", { className: "absolute bottom-2 right-2 rounded-md bg-black/50 text-slate-100 text-xs px-2.5 py-1 flex items-center gap-1" },
+                        React.createElement(Icon, { size: 13 }, "🔍"),
+                        "Agrandir avant de valider"))),
                 enhancedUrl && (React.createElement("div", { className: "space-y-2" },
                     React.createElement("div", { className: "flex gap-2" },
                         React.createElement("label", { className: "flex items-center justify-center gap-1.5 rounded-md border border-slate-700 px-4 py-2.5 text-sm text-slate-300 cursor-pointer" },
@@ -537,5 +544,17 @@ function CarnetBTApp() {
                     }, className: "flex flex-col items-center gap-0.5 py-1.5 rounded-md text-xs " + (view === "ajout" ? "text-teal-400" : "text-slate-500") },
                     React.createElement(Icon, { size: 18 }, "+"),
                     "Ajouter"))),
-        toast && (React.createElement("div", { className: "fixed top-3 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-700 rounded-md px-4 py-2 text-sm shadow-lg z-30" }, toast))));
+        toast && (React.createElement("div", { className: "fixed top-3 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-700 rounded-md px-4 py-2 text-sm shadow-lg z-30" }, toast)),
+        enhancedUrl && previewOpen && (React.createElement("div", { className: "fixed inset-0 z-50 bg-black flex flex-col", onClick: () => setPreviewOpen(false) },
+            React.createElement("div", { className: "flex items-center justify-between px-4 py-3" },
+                React.createElement("span", { className: "text-xs text-slate-400" }, "Appuie sur la photo pour zoomer · appuie ici pour fermer"),
+                React.createElement("button", { onClick: (e) => { e.stopPropagation(); setPreviewOpen(false); }, className: "text-slate-300 px-2 py-1" },
+                    React.createElement(Icon, { size: 20 }, "✕"))),
+            React.createElement("div", { className: "flex-1 overflow-auto flex items-center justify-center p-2" },
+                React.createElement("img", {
+                    src: enhancedUrl,
+                    alt: "aperçu agrandi",
+                    onClick: (e) => { e.stopPropagation(); setPreviewZoom((z) => !z); },
+                    className: previewZoom ? "w-[220%] max-w-none cursor-zoom-out" : "max-w-full max-h-full object-contain cursor-zoom-in",
+                }))))));
 }
