@@ -116,7 +116,7 @@ function CarnetBTApp() {
         if (agendaFormOpen) {
             window.scrollTo(0, document.body.scrollHeight);
         }
-    }, [agendaFormOpen]);
+    }, [agendaFormOpen, agendaFormType, agendaFormPatientId, agendaFormBtId, agendaFormTime, agendaFormNoteText]);
     function showToast(msg) {
         setToast(msg);
         setTimeout(() => setToast(null), 2000);
